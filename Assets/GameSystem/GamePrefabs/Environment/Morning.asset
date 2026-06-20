@@ -16,6 +16,6 @@ MonoBehaviour:
   skyboxMaterial: {fileID: 2100000, guid: bda0d7acf8c054dea902ef6da379b121, type: 2}
   directionalLightColor: {r: 1, g: 0.9568396, b: 0.65471697, a: 1}
   directionalLightIntensity: 0.8
-  backGroundMusic: {fileID: 8300000, guid: ab005806e73122147a929b9d36b059dc, type: 3}
+  backGroundMusic: {fileID: 8300000, guid: fc85bbde0ee62064aa52fdbb216a38c9, type: 3}
   ambientColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
   ambientIntensity: 1

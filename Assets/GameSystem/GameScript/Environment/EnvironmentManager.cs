@@ -90,16 +90,16 @@ public class EnvironmentManager : MonoBehaviour
         }
 
         // Ambient Sound
-        if (weather.ambientSound != null)
+        AudioSource ambienceAudio = GameReference.AmbienceAudioSource;
+        if (weather.ambientSound != ambienceAudio.clip)
         {
-            GameReference.AmbienceAudioSource.clip = weather.ambientSound;
-            if (!GameReference.AmbienceAudioSource.isPlaying)
-                GameReference.AmbienceAudioSource.Play();
-        }
-        else
-        {
-            GameReference.AmbienceAudioSource.Stop();
-            GameReference.AmbienceAudioSource.clip = null;
+            if (activeAudioFade != null) StopCoroutine(activeAudioFade);
+            activeAudioFade = StartCoroutine(AudioCrossFade(ambienceAudio, weather.ambientSound, audioFadeTime));
+
+            if (weather.ambientSound != null)
+                LerpBgmVolume(rainyBgmVolume);
+            else
+                LerpBgmVolume(1f);
         }
 
         // Lighting intensity adjustment
@@ -160,6 +160,12 @@ public class EnvironmentManager : MonoBehaviour
         DynamicGI.UpdateEnvironment();
 
         Debug.Log($"[EnvironmentManager] Time of day changed to: {time.timeName}");
+        AudioSource bgmAudio = GameReference.BGMAudioSource;
+        if (time.backGroundMusic != bgmAudio.clip)
+        {
+            if (activeAudioFade != null) StopCoroutine(activeAudioFade);
+            activeAudioFade = StartCoroutine(AudioCrossFade(bgmAudio, time.backGroundMusic, audioFadeTime));
+        }
     }
 
     // ──────────────────────────────────────────────
@@ -196,4 +202,69 @@ public class EnvironmentManager : MonoBehaviour
     // ──────────────────────────────────────────────
     public string GetCurrentWeatherName() => currentWeather ? currentWeather.weatherName : "None";
     public string GetCurrentTimeName() => currentTime ? currentTime.timeName : "None";
+    // ===================== 新增音频平滑过渡工具区 =====================
+    private Coroutine activeAudioFade;
+    private Coroutine bgmVolumeTween;
+    [Header("音频联动参数")]
+    [Range(0f, 1f)] public float rainyBgmVolume = 0.25f;
+    public float audioFadeTime = 2f;
+
+    // 音频交叉淡入淡出（环境音/BGM通用）
+    private IEnumerator AudioCrossFade(AudioSource audioSource, AudioClip newClip, float fadeTime)
+    {
+        // 淡出当前音频
+        float startVolume = audioSource.volume;
+        float timer = 0;
+        while (timer < fadeTime)
+        {
+            timer += Time.deltaTime;
+            audioSource.volume = Mathf.Lerp(startVolume, 0, timer / fadeTime);
+            yield return null;
+        }
+        audioSource.volume = 0;
+        audioSource.Stop();
+
+        // 无新音频直接退出
+        if (newClip == null)
+        {
+            audioSource.clip = null;
+            yield break;
+        }
+
+        // 随机起始播放点，消除循环卡顿机械感
+        audioSource.clip = newClip;
+        audioSource.time = Random.Range(0f, newClip.length * 0.3f);
+        audioSource.Play();
+
+        // 淡入新音频
+        timer = 0;
+        while (timer < fadeTime)
+        {
+            timer += Time.deltaTime;
+            audioSource.volume = Mathf.Lerp(0, 1, timer / fadeTime);
+            yield return null;
+        }
+        audioSource.volume = 1;
+    }
+
+    // BGM音量平滑渐变
+    private void LerpBgmVolume(float targetVolume)
+    {
+        if (bgmVolumeTween != null) StopCoroutine(bgmVolumeTween);
+        bgmVolumeTween = StartCoroutine(BgmVolumeSmooth(targetVolume, audioFadeTime));
+    }
+    private IEnumerator BgmVolumeSmooth(float targetVol, float duration)
+    {
+        AudioSource bgmAudio = GameReference.BGMAudioSource;
+        float startVol = bgmAudio.volume;
+        float t = 0;
+        while (t < duration)
+        {
+            t += Time.deltaTime;
+            bgmAudio.volume = Mathf.Lerp(startVol, targetVol, t / duration);
+            yield return null;
+        }
+        bgmAudio.volume = targetVol;
+    }
 }
+
