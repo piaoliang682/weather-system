@@ -1,0 +1,152 @@
+﻿using UnityEngine;
+using UnityEngine.Events;
+using System.Collections.Generic;
+using UnityEngine.SceneManagement;
+
+public class SystemGameManager : MonoBehaviour
+{
+    public static SystemGameManager Instance { get; private set; }
+
+    public Timer gameTimer;
+    // 游戏事件
+    public UnityEvent OnGameStart;
+    public UnityEvent OnGameWin;
+    public UnityEvent OnGameLose;
+    public UnityEvent OnGamePaused;
+    public UnityEvent OnGameResumed;
+
+    public UnityEvent<bool> OnGamePauseToggle;  // pass true=paused, false=resumed
+
+    private bool isGamePaused;
+
+
+    public bool IsGameOver
+    { get; set; }
+
+    public bool IsGamePaused
+    {
+        get => isGamePaused;
+        set
+        {
+            if (isGamePaused == value) return;
+
+            isGamePaused = value;
+            //Time.timeScale = isGamePaused ? 0f : 1f;
+
+            if (isGamePaused)
+                OnGamePaused?.Invoke();
+            else
+                OnGameResumed?.Invoke();
+        }
+    }
+
+    private void Awake()
+    {
+        // 单例模式
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+        Instance = this;
+
+    }
+
+    //private void Start()
+    //{
+    //    OnGameStart?.Invoke();
+    //    StartGame();
+    //}
+
+    //public void StartGame()
+    //{
+    //    Instantiate(GameReference.Game);
+    //    LevelManager.Instance.SpawnLevel();
+    //    GameMode.Instance.StartGame();
+    //    GameOverUIManager.Instance.Initiate();
+    //}
+    public void GameWin()
+    {
+        OnGamePauseToggle?.Invoke(true);
+        if (IsGameOver) return;
+
+        IsGameOver = true;
+        PauseGame();
+        Debug.Log("游戏胜利！");
+        OnGameWin?.Invoke();
+
+        GameOverUIManager.Instance?.ShowGameWin();
+        LevelManager.Instance.OnLevelCompleted();
+    }
+
+
+    public void GameLose()
+    {
+        Debug.Log("ss");
+        if (IsGameOver) return;
+
+        PauseGame();
+        Debug.Log("st");
+        OnGameLose?.Invoke();
+        IsGameOver = true;
+        Debug.Log("游戏失败！");
+
+        GameOverUIManager.Instance?.ShowGameLose();
+    }
+    public void ReviveGame()
+    {
+        IsGameOver = false;
+        ResumeGame();
+        GameOverUIManager.Instance?.HidePanel();
+    }
+    public void PauseGame()
+    {
+        OnGamePauseToggle?.Invoke(true);
+        IsGamePaused = true;
+        Debug.Log("游戏已暂停");
+        SetPauseState(false);
+
+    }
+    public void SetPauseState(bool paused)
+    {
+        foreach (var kvp in GameReference.PauseObjects)
+        {
+            if (kvp.Key == null) continue;
+            kvp.Key.SetActive(paused);
+            Debug.Log(kvp.Key.name+"pasued");
+        }
+    }
+    public void ResumeGame()
+    {
+        OnGamePauseToggle?.Invoke(false);
+        IsGamePaused = false;
+        Debug.Log("游戏已继续");
+
+        SetPauseState(true);
+    }
+
+    public void RestartGame()
+    {
+        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        string playerName = PlayerPrefs.GetString(GlobalValue.CURRENT_LOGIN_ACCOUNT_KEY, "玩家");
+        ScoreManager.Instance.SubmitScore(playerName);
+    }
+
+    public void LoadNextLevel()
+    {
+        string playerName = PlayerPrefs.GetString(GlobalValue.CURRENT_LOGIN_ACCOUNT_KEY, "玩家");
+        ScoreManager.Instance.SubmitScore(playerName);
+        ScoreManager.Instance.ResetScore();
+        LevelManager.Instance.LoadNextLevel();
+    }
+    public void ReturnLobby()
+    {
+        SceneManager.LoadScene(GameReference.LobbyScene);
+        string playerName = PlayerPrefs.GetString(GlobalValue.CURRENT_LOGIN_ACCOUNT_KEY, "玩家");
+        ScoreManager.Instance.SubmitScore(playerName);
+    }
+    private void OnDestroy()
+    {
+        Debug.Log("this should not destroy");
+    }
+}

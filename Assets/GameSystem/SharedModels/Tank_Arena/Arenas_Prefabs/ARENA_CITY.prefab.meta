@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 8c90bd264b07e57489614f55bf0a546f
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 142522
+  packageName: Tank Arena
+  packageVersion: 1.4
+  assetPath: Assets/Tank_Arena/Arenas_Prefabs/ARENA_CITY.prefab
+  uploadId: 573716

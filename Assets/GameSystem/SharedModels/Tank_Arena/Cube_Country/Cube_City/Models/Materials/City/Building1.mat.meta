@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: eb55d4895f1e63743847f7383055a9a6
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 142522
+  packageName: Tank Arena
+  packageVersion: 1.4
+  assetPath: Assets/Tank_Arena/Cube_Country/Cube_City/Models/Materials/City/Building1.mat
+  uploadId: 573716

@@ -1,0 +1,9 @@
+﻿using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+[CreateAssetMenu(fileName = "Inventory Preset", menuName = "Game/Inventory/Inventory Preset")]
+public class InventoryPreset : ScriptableObject
+{
+    public ItemStack[] itemList = new ItemStack[16];
+}

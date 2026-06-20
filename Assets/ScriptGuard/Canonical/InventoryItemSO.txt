@@ -1,0 +1,83 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+
+[CreateAssetMenu(menuName = "Game/Inventory/Item")]
+public class InventoryItemSO : ScriptableObject
+{
+    public string id;
+    public string displayedName;
+    public string description;
+    [Header("Visuals")]
+    public Sprite itemImage;               // Used ONLY for UI
+    public GameObject itemPrefab;
+
+    //public BuffSO buff;
+    public bool isInstantUse;
+
+
+
+    [Header("Settings")]
+    public bool stackable;
+    public bool dropable = true;
+
+
+    public void SpawnFromInventory(Vector3 spawnPosition)
+    {
+        SpawnItem(spawnPosition, DragStack.stack.quantity);
+    }
+
+    public bool IsDropable()
+    {
+        return dropable;
+    }
+    //public BuffSO GetBuff()
+    //{
+    //    return buff;
+    //}
+
+    public void SpawnItem(Vector3 position, int quantity)
+    {
+        GameObject droppedItem;
+
+        if (itemPrefab != null)
+        {
+            // Instantiate mesh-based prefab
+            droppedItem = Instantiate(itemPrefab, position, Quaternion.identity);
+        }
+        else
+        {
+            // Fallback to placeholder object with icon (not rendered in inventory)
+            droppedItem = new GameObject(itemPrefab.name + "_Dropped");
+            droppedItem.transform.position = position;
+
+            // Optional: for debugging only — you could remove this if icon shouldn't show in world
+            var renderer = droppedItem.AddComponent<SpriteRenderer>();
+            renderer.sprite = itemImage;
+            renderer.sortingOrder = 5;
+        }
+
+        // Attach pickup logic
+        var pickup = droppedItem.GetComponent<InventoryItem>();
+        pickup.Initiate(this, quantity);
+    }
+
+    //public void ApplyBuff(BuffController buffController)
+    //{
+    //    // If the item has a buff, apply it
+    //    if (buff != null)
+    //    {
+    //        if (buffController != null)
+    //        {
+    //            buffController.ApplyBuff(buff);
+    //            Debug.Log($"Applied buff: {buff.buffName}");
+    //        }
+    //        else
+    //        {
+    //            Debug.LogWarning("No BuffController found on the user to apply buff!");
+    //        }
+    //    }
+
+    //}
+}

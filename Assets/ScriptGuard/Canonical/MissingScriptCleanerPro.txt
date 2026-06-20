@@ -1,0 +1,382 @@
+#if UNITY_EDITOR
+using System;
+using System.Collections.Generic;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+public class MissingScriptCleanerPro : EditorWindow
+{
+    private Vector2 scroll;
+    private readonly List<string> logs = new List<string>();
+
+    [MenuItem("Tools/Missing Script Cleaner Pro")]
+    public static void Open()
+    {
+        GetWindow<MissingScriptCleanerPro>("Missing Script Cleaner");
+    }
+
+    private void OnGUI()
+    {
+        GUILayout.Space(8);
+
+        EditorGUILayout.HelpBox(
+            "�������������ѡ�����塢Prefab Դ�ļ���� Missing Script��\n" +
+            "�����ʾ Prefab file contains an invalid script������������ Prefab Դ�ļ���",
+            MessageType.Info
+        );
+
+        GUILayout.Space(8);
+
+        if (GUILayout.Button("�����ǰ�򿪵����г���", GUILayout.Height(34)))
+        {
+            ClearLogs();
+            CleanAllOpenScenes();
+        }
+
+        GUILayout.Space(4);
+
+        if (GUILayout.Button("����ѡ�ж��� / Prefab Դ�ļ�", GUILayout.Height(34)))
+        {
+            ClearLogs();
+            CleanSelectionSmart();
+        }
+
+        GUILayout.Space(4);
+
+        if (GUILayout.Button("������Ŀ������ Prefab", GUILayout.Height(34)))
+        {
+            ClearLogs();
+
+            bool ok = EditorUtility.DisplayDialog(
+                "�������� Prefab",
+                "����ɨ�貢�޸���Ŀ������ Prefab��\n\n�������ύ Git / ������Ŀ��\n\n�Ƿ������",
+                "����",
+                "ȡ��"
+            );
+
+            if (ok)
+            {
+                CleanAllPrefabsInProject();
+            }
+        }
+
+        GUILayout.Space(8);
+
+        if (GUILayout.Button("���� Assets �ͳ���", GUILayout.Height(28)))
+        {
+            AssetDatabase.SaveAssets();
+            EditorSceneManager.SaveOpenScenes();
+            Log("�ѱ��� Assets �͵�ǰ�򿪳�����");
+        }
+
+        GUILayout.Space(12);
+
+        EditorGUILayout.LabelField("��־", EditorStyles.boldLabel);
+
+        scroll = EditorGUILayout.BeginScrollView(scroll);
+        foreach (string log in logs)
+        {
+            EditorGUILayout.LabelField(log, EditorStyles.wordWrappedLabel);
+        }
+        EditorGUILayout.EndScrollView();
+    }
+
+    private void ClearLogs()
+    {
+        logs.Clear();
+    }
+
+    private void Log(string message)
+    {
+        logs.Add(message);
+        Debug.Log("[MissingScriptCleanerPro] " + message);
+        Repaint();
+    }
+
+    // ===============================
+    // �����ǰ�򿪳���
+    // ===============================
+
+    private void CleanAllOpenScenes()
+    {
+        int totalRemoved = 0;
+        int totalObjects = 0;
+
+        HashSet<Scene> dirtyScenes = new HashSet<Scene>();
+
+        int undoGroup = Undo.GetCurrentGroup();
+        Undo.SetCurrentGroupName("Clean Missing Scripts In Scenes");
+
+        for (int i = 0; i < SceneManager.sceneCount; i++)
+        {
+            Scene scene = SceneManager.GetSceneAt(i);
+            if (!scene.isLoaded) continue;
+
+            GameObject[] roots = scene.GetRootGameObjects();
+
+            foreach (GameObject root in roots)
+            {
+                CleanGameObjectHierarchy(root, true, ref totalRemoved, ref totalObjects);
+
+                if (totalRemoved > 0)
+                {
+                    dirtyScenes.Add(scene);
+                }
+            }
+        }
+
+        foreach (Scene scene in dirtyScenes)
+        {
+            EditorSceneManager.MarkSceneDirty(scene);
+        }
+
+        Undo.CollapseUndoOperations(undoGroup);
+
+        Log($"����������ɡ��Ƴ� Missing Script��{totalRemoved} ����Ӱ�����壺{totalObjects} ����");
+    }
+
+    // ===============================
+    // ��������ѡ��
+    // ѡ�г���ʵ��ʱ���᳢�������Ӧ Prefab Դ�ļ�
+    // ѡ�� Project ����е� Prefab ʱ����ֱ������ Prefab Asset
+    // ===============================
+
+    private void CleanSelectionSmart()
+    {
+        UnityEngine.Object[] selected = Selection.objects;
+
+        if (selected == null || selected.Length == 0)
+        {
+            EditorUtility.DisplayDialog("��ʾ", "����ѡ�г�������� Project ������ Prefab��", "OK");
+            return;
+        }
+
+        int totalRemoved = 0;
+        int totalObjects = 0;
+        int prefabCleaned = 0;
+
+        HashSet<string> prefabPaths = new HashSet<string>();
+
+        foreach (UnityEngine.Object obj in selected)
+        {
+            if (obj == null) continue;
+
+            string assetPath = AssetDatabase.GetAssetPath(obj);
+
+            // Project �����ֱ��ѡ�е� Prefab
+            if (!string.IsNullOrEmpty(assetPath) && assetPath.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase))
+            {
+                prefabPaths.Add(assetPath);
+                continue;
+            }
+
+            GameObject go = obj as GameObject;
+            if (go == null) continue;
+
+            // �����е� Prefab ʵ�����ҵ�����Դ Prefab
+            string prefabPath = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(go);
+            if (!string.IsNullOrEmpty(prefabPath))
+            {
+                prefabPaths.Add(prefabPath);
+            }
+            else
+            {
+                // ��ͨ��������
+                CleanGameObjectHierarchy(go, true, ref totalRemoved, ref totalObjects);
+
+                if (go.scene.IsValid() && go.scene.isLoaded)
+                {
+                    EditorSceneManager.MarkSceneDirty(go.scene);
+                }
+            }
+        }
+
+        foreach (string path in prefabPaths)
+        {
+            int removed;
+            int objects;
+
+            bool changed = CleanPrefabAsset(path, out removed, out objects);
+
+            if (changed)
+            {
+                prefabCleaned++;
+                totalRemoved += removed;
+                totalObjects += objects;
+            }
+        }
+
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
+
+        Log($"ѡ������������ɡ����� Prefab��{prefabCleaned} �����Ƴ� Missing Script��{totalRemoved} ����Ӱ�����壺{totalObjects} ����");
+    }
+
+    // ===============================
+    // ������Ŀ���� Prefab
+    // ===============================
+
+    private void CleanAllPrefabsInProject()
+    {
+        string[] guids = AssetDatabase.FindAssets("t:Prefab");
+
+        int prefabCount = guids.Length;
+        int changedPrefabCount = 0;
+        int totalRemoved = 0;
+        int totalObjects = 0;
+
+        try
+        {
+            for (int i = 0; i < prefabCount; i++)
+            {
+                string guid = guids[i];
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+
+                EditorUtility.DisplayProgressBar(
+                    "���� Missing Script",
+                    path,
+                    prefabCount == 0 ? 1f : (float)i / prefabCount
+                );
+
+                int removed;
+                int objects;
+
+                bool changed = CleanPrefabAsset(path, out removed, out objects);
+
+                if (changed)
+                {
+                    changedPrefabCount++;
+                    totalRemoved += removed;
+                    totalObjects += objects;
+                }
+            }
+        }
+        finally
+        {
+            EditorUtility.ClearProgressBar();
+        }
+
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
+
+        Log($"��Ŀ Prefab ������ɡ�ɨ�� Prefab��{prefabCount} �����޸� Prefab��{changedPrefabCount} �����Ƴ� Missing Script��{totalRemoved} ����Ӱ�����壺{totalObjects} ����");
+    }
+
+    // ===============================
+    // ���ģ����� Prefab Asset ����
+    // ===============================
+
+    private bool CleanPrefabAsset(string prefabPath, out int removedCount, out int affectedObjectCount)
+    {
+        removedCount = 0;
+        affectedObjectCount = 0;
+
+        if (string.IsNullOrEmpty(prefabPath))
+            return false;
+
+        if (!prefabPath.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        GameObject prefabRoot = null;
+
+        try
+        {
+            prefabRoot = PrefabUtility.LoadPrefabContents(prefabPath);
+
+            if (prefabRoot == null)
+            {
+                Log($"�޷����� Prefab��{prefabPath}");
+                return false;
+            }
+
+            CleanGameObjectHierarchy(prefabRoot, false, ref removedCount, ref affectedObjectCount);
+
+            if (removedCount > 0)
+            {
+                PrefabUtility.SaveAsPrefabAsset(prefabRoot, prefabPath);
+                Log($"������ Prefab��{prefabPath}���Ƴ� {removedCount} �� Missing Script��");
+                return true;
+            }
+
+            return false;
+        }
+        catch (Exception e)
+        {
+            Log($"���� Prefab ʧ�ܣ�{prefabPath}\n{e.Message}");
+            return false;
+        }
+        finally
+        {
+            if (prefabRoot != null)
+            {
+                PrefabUtility.UnloadPrefabContents(prefabRoot);
+            }
+        }
+    }
+
+    // ===============================
+    // ���ģ�����һ�� GameObject �㼶
+    // includeUndo = true ���ڳ�������
+    // includeUndo = false ���� Prefab ��ʱ���ض���
+    // ===============================
+
+    private void CleanGameObjectHierarchy(
+        GameObject root,
+        bool includeUndo,
+        ref int removedCount,
+        ref int affectedObjectCount
+    )
+    {
+        if (root == null) return;
+
+        Transform[] transforms = root.GetComponentsInChildren<Transform>(true);
+
+        if (includeUndo)
+        {
+            Undo.RegisterFullObjectHierarchyUndo(root, "Remove Missing Scripts");
+        }
+
+        foreach (Transform t in transforms)
+        {
+            if (t == null) continue;
+
+            GameObject go = t.gameObject;
+
+            int missingCount = GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(go);
+
+            if (missingCount <= 0)
+                continue;
+
+            int removed = GameObjectUtility.RemoveMonoBehavioursWithMissingScript(go);
+
+            if (removed > 0)
+            {
+                removedCount += removed;
+                affectedObjectCount++;
+
+                EditorUtility.SetDirty(go);
+
+                Log($"�Ƴ� Missing Script��{GetGameObjectPath(go)}��������{removed}");
+            }
+        }
+    }
+
+    private string GetGameObjectPath(GameObject go)
+    {
+        if (go == null) return "Null";
+
+        string path = go.name;
+        Transform current = go.transform.parent;
+
+        while (current != null)
+        {
+            path = current.name + "/" + path;
+            current = current.parent;
+        }
+
+        return path;
+    }
+}
+#endif

@@ -1,0 +1,48 @@
+using UnityEngine;
+using UnityEngine.UI;
+
+public class LeaderboardEntryUI : MonoBehaviour
+{
+    public Image rankIcon;      // For 1-3
+    public Text rankText;       // For ranks ��4 (or fallback)
+    public Text nameText;
+    public Text scoreText;
+
+    // Sprites for top 3 ranks
+    public Sprite firstPlaceSprite;
+    public Sprite secondPlaceSprite;
+    public Sprite thirdPlaceSprite;
+
+    public void SetData(int rank, string playerName, int score)
+    {
+        nameText.text = playerName;
+        scoreText.text = score > 0 ? score.ToString() : "---";
+
+        // Decide icon or text for rank
+        if (rank == 1)
+        {
+            rankIcon.sprite = firstPlaceSprite;
+            rankIcon.gameObject.SetActive(true);
+            rankText.gameObject.SetActive(false);
+        }
+        else if (rank == 2)
+        {
+            rankIcon.sprite = secondPlaceSprite;
+            rankIcon.gameObject.SetActive(true);
+            rankText.gameObject.SetActive(false);
+        }
+        else if (rank == 3)
+        {
+            rankIcon.sprite = thirdPlaceSprite;
+            rankIcon.gameObject.SetActive(true);
+            rankText.gameObject.SetActive(false);
+        }
+        else
+        {
+            // For ranks 4 and beyond, use plain text
+            rankIcon.gameObject.SetActive(false);
+            rankText.gameObject.SetActive(true);
+            rankText.text = $"{rank}.";
+        }
+    }
+}

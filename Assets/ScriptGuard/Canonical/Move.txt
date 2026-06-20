@@ -1,0 +1,154 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class Move : MonoBehaviour
+{
+
+    public bool isCameraBaseMovement=true;
+    [Header("Movement Speeds")]
+    public float walkSpeed = 2f;
+    public float runSpeed = 6f;
+    public float turnSpeed = 10f;
+    [SerializeField] float deceleration = 1f;
+    [SerializeField] float speedDampTime = 0.1f;
+
+
+    [Header("References")]
+    private Transform cameraTransform;
+
+
+    private Rigidbody rb;
+    private Animator animator;
+    // Start is called before the first frame update
+    void Start()
+    {
+        cameraTransform = GameReference.CameraTransform;
+        Debug.Log(cameraTransform==null);
+        rb = GetComponent<Rigidbody>();
+        animator = GetComponent<CharacterStats>().animator;
+    }
+
+    public void HandleRotation(float value)
+    {
+        Quaternion deltaRotation =
+    Quaternion.Euler(0f, value*turnSpeed, 0f);
+        rb.MoveRotation(rb.rotation * deltaRotation);
+    }
+    /// <summary>
+    /// moveDir should be a normalized direction on XZ plane
+    /// </summary>
+    public void NoTurnMovement(bool isRun, Vector3 moveDir)
+    {
+        if (moveDir.sqrMagnitude > 1f)
+            moveDir.Normalize();
+
+        float speed = isRun ? runSpeed : walkSpeed;
+
+        // 🔁 Convert local input into world direction (NO rotation applied)
+        Vector3 worldMove =
+            transform.forward * moveDir.z +
+            transform.right * moveDir.x;
+
+        Vector3 velocity = worldMove * speed;
+        velocity.y = rb.velocity.y; // keep gravity
+
+        rb.velocity = velocity;
+    }
+
+    // Update is called once per frame
+    public void Movement(bool isRun, Vector3 moveDir)
+    {
+
+
+        float inputMag = Mathf.Clamp01(moveDir.magnitude);
+
+        float targetBlend = inputMag * (isRun ? 1f : 0.5f);
+        
+        if(animator!=null)
+            animator.SetFloat("Speed", targetBlend, speedDampTime, Time.deltaTime);
+        Vector3 currentVel = rb.velocity;
+        if (inputMag > 0.01f)
+        {
+            // Calculate intended horizontal (ground) movement speed
+            float speedTotal = Mathf.Lerp(walkSpeed, runSpeed, targetBlend * 2f);
+
+
+
+            // Compute new horizontal velocity based on moveDir
+            Vector3 horizontalVel = new Vector3(moveDir.x * speedTotal, 0f, moveDir.z * speedTotal);
+
+            // Optionally clamp horizontal magnitude to max horizontal speed
+            float maxHorizontalSpeed;
+            if (isRun)
+            {
+                maxHorizontalSpeed = runSpeed;
+            }
+            else
+            {
+                maxHorizontalSpeed = walkSpeed;
+            }
+
+            if (horizontalVel.magnitude > maxHorizontalSpeed)
+            {
+                horizontalVel = horizontalVel.normalized * maxHorizontalSpeed;
+            }
+
+            // Preserve vertical velocity (jump / gravity)
+            currentVel.x = horizontalVel.x;
+            currentVel.z = horizontalVel.z;
+            // leave currentVel.y untouched
+
+            rb.velocity = currentVel;
+
+            // Smooth rotation (same as before)
+            Quaternion targetRot = Quaternion.LookRotation(moveDir);
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, turnSpeed * Time.deltaTime);
+        }
+
+
+        else
+        {
+            // No input — decelerate (damp) horizontal velocity
+            Vector3 damped = new Vector3(
+                Mathf.Lerp(currentVel.x, 0f, deceleration * Time.deltaTime),
+                currentVel.y,
+                Mathf.Lerp(currentVel.z, 0f, deceleration * Time.deltaTime)
+            );
+            rb.velocity = damped;
+
+            if (animator != null)
+                animator.SetFloat("Speed", 0f, speedDampTime, Time.deltaTime);
+        }
+    }
+    public void CameraBaseMovement(float x, float z, bool isRun)
+    {
+
+        if (cameraTransform == null)
+        {
+            Debug.Log("cameraTransform not assigned");
+            return;
+        }
+        Vector3 camF = cameraTransform.forward; camF.y = 0f; camF.Normalize();
+            
+        Vector3 camR = cameraTransform.right; camR.y = 0f; camR.Normalize();
+
+            
+        Vector3 moveDir = (camR * x + camF * z).normalized;
+        Movement(isRun, moveDir);
+
+    }
+
+    public void HandleMovement(float x, float z, bool isRun)
+    {
+        if (isCameraBaseMovement)
+        {
+            CameraBaseMovement(x, z, isRun);
+        }
+        else
+        {
+            Vector3 moveDir = new Vector3(x, 0f, z);
+            NoTurnMovement(isRun, moveDir);
+        }
+    }
+}

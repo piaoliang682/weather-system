@@ -1,0 +1,16 @@
+using System.Collections.Generic;
+using UnityEngine;
+
+[CreateAssetMenu(fileName = "NewContents", menuName = "Game/Contents")]
+public class ContentSO : ScriptableObject
+{
+
+    [Header("Topic")]
+    public string topic;
+    [Header("Text Data")]
+    public List<string> textList = new List<string>();
+    [Header("Sprite Data")]
+    public List<Sprite> spriteList = new List<Sprite>();
+    [Header("GameObjects")]
+    public List<GameObject> gameObjects = new List<GameObject>();
+}

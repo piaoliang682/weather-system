@@ -1,0 +1,199 @@
+﻿using UnityEngine;
+using UnityEngine.SceneManagement;
+using System.Collections.Generic;
+
+public class LevelManager : MonoBehaviour
+{
+    public static LevelManager Instance { get; private set; }
+
+    private GameObject currentLevelInstance;
+    private LevelSO levelSO;
+
+    private void Awake()
+    {
+        // Singleton setup
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        Instance = this;
+
+        // Auto-respawn after reload
+        //SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+    private void Start()
+    {
+        levelSO = GameReference.LevelSO;
+    }
+
+    //private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    //{
+    //    SpawnLevel();
+    //}
+
+    /// <summary>
+    /// Spawn the current level prefab based on GameReference index.
+    /// </summary>
+    public void SpawnLevel()
+    {
+        levelSO = GameReference.LevelSO;
+        if (GameReference.Instance == null)
+        {
+            Debug.LogError("? GameReference is not initialized!");
+            return;
+        }
+
+        // Get prefab from index
+        int currentIndex = GameReference.CurrentLevelIndex;
+
+        if (levelSO == null)
+        {
+            Debug.LogError("? Invalid level index or missing LevelSO!");
+            return;
+        }
+
+        GameObject prefab = levelSO.levelItems[currentIndex].levelPrefab;
+        if (prefab == null)
+        {
+            Debug.LogError($"? No prefab assigned for level index {currentIndex}!");
+            return;
+        }
+
+        GameReference.LevelPrefab = prefab; // ensure consistency
+
+        // Destroy previous
+        if (currentLevelInstance != null)
+            Destroy(currentLevelInstance);
+
+        currentLevelInstance = Instantiate(prefab, Vector3.zero, Quaternion.identity);
+        currentLevelInstance.name = prefab.name + "_Instance";
+
+        Debug.Log($"? Spawned level: {prefab.name} (Index {currentIndex})");
+    }
+
+    public void OnLevelCompleted()
+    {
+        if (levelSO == null || GameReference.Instance == null) return;
+
+        int index = GameReference.CurrentLevelIndex;
+        if (index < 0 || index >= levelSO.levelItems.Count) return;
+
+        string currentId = levelSO.levelItems[index].levelId;
+
+        Debug.Log($"?? Level completed: {currentId}");
+
+        LevelSaveData saveData = LoadSaveData();
+
+        UnlockNextLevel(index, saveData);
+        // Display all saved unlock states for debugging
+
+
+
+
+    }
+
+    public void UnlockNextLevel(int currentIndex, LevelSaveData saveData)
+    {
+        if (levelSO == null || levelSO.levelItems == null) return;
+
+        if (currentIndex < levelSO.levelItems.Count - 1)
+        {
+            saveData.levels[currentIndex + 1].isLocked= false;
+
+            Debug.Log($"{saveData.levels[currentIndex + 1].levelId} is unlocked. actual id {levelSO.levelItems[currentIndex + 1].levelId}");
+
+        }
+        else
+        {
+            Debug.Log("?? All levels completed!");
+        }
+
+        GlobalValue.SaveData(GlobalValue.PLAYER_LEVEL_DATA_KEY, saveData);
+    }
+
+    /// <summary>
+    /// Reloads the same scene and re-spawns current prefab.
+    /// </summary>
+    public void RestartLevel()
+    {
+        Debug.Log("?? Restarting level...");
+        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+    }
+
+    /// <summary>
+    /// Moves to the next level in LevelSO order, updates index in GameReference,
+    /// and reloads the current scene (no scene switch).
+    /// </summary>
+    public void LoadNextLevel()
+    {
+        if (levelSO == null || levelSO.levelItems == null)
+        {
+            Debug.Log("assign a levelSO!");
+            return;
+        }
+
+            int nextIndex = GameReference.CurrentLevelIndex + 1;
+        Debug.Log(nextIndex);
+            if (nextIndex >= levelSO.levelItems.Count)
+            {
+                Debug.Log("? No more levels. Returning to main menu...");
+            GameReference.CurrentLevelIndex = 0; // reset to first level for next playthrough
+            SceneManager.LoadScene(0);
+                return;
+            }
+
+        GameReference.CurrentLevelIndex = nextIndex;
+        GameReference.LevelPrefab = levelSO.levelItems[nextIndex].levelPrefab;
+
+        Debug.Log($"?? Loading next level: {levelSO.levelItems[nextIndex].levelId} (Index {nextIndex})");
+        SceneManager.LoadScene(levelSO.levelItems[nextIndex].levelId);
+    }
+
+
+
+    private LevelSaveData LoadSaveData()
+    {
+        // Try loading from PlayerPrefs
+        LevelSaveData data = GlobalValue.LoadData<LevelSaveData>(GlobalValue.PLAYER_LEVEL_DATA_KEY);
+
+        if (data == null || data.levels == null || data.levels.Count == 0)
+        {
+            Debug.LogWarning("[LevelSystem] ⚠️ No existing save data found, loading defaults from ScriptableObject.");
+            data = new LevelSaveData();
+
+            if (levelSO != null)
+            {
+                // Populate levels from SO
+                foreach (var levelItem in levelSO.levelItems)
+                {
+                    if (levelItem == null) continue;
+
+                    // Create new LevelEntry and add to list
+                    data.levels.Add(new LevelEntry(levelItem.levelId, levelItem.isLocked));
+                }
+
+                // Optional: build lookup dictionary for fast access
+                data.BuildLookup();
+
+                Debug.Log("[LevelSystem] ✅ Loaded default level data from SO.");
+            }
+            else
+            {
+                Debug.LogError("[LevelSystem] ❌ Default LevelSO is missing! Cannot initialize level data.");
+            }
+        }
+        else
+        {
+            Debug.Log("[LevelSystem] ✅ Loaded level data from PlayerPrefs.");
+            data.BuildLookup(); // ensure lookup dictionary is ready
+        }
+
+        return data;
+    }
+
+
+
+    public GameObject GetCurrentLevel() => currentLevelInstance;
+}

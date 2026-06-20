@@ -1,0 +1,119 @@
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.UI;
+
+public class LevelSelectionPanel : InteractivePanelBase
+{
+    [Header("Level Data Source")]
+     private LevelSO levelList;
+
+    [Header("UI Prefabs")]
+    [SerializeField] private GameObject levelButtonPrefab;
+    [SerializeField] private Transform buttonContainer;
+
+    private readonly List<LevelUI> spawnedLevels = new List<LevelUI>();
+    private LevelUI selectedLevelUI;
+
+    protected override void Awake()
+    {
+        levelList = GameReference.LevelSO;
+        base.Awake();
+        GenerateLevelButtons();
+
+    }
+
+    private void GenerateLevelButtons()
+    {
+        if (levelList == null || levelButtonPrefab == null || buttonContainer == null)
+        {
+            Debug.LogWarning("⚠️ Missing references in LevelSelectionPanel.");
+            return;
+        }
+
+        // Clear old UI
+        foreach (Transform child in buttonContainer)
+            Destroy(child.gameObject);
+
+        spawnedLevels.Clear();
+
+        LevelSaveData saveData = GlobalValue.LoadData<LevelSaveData>(GlobalValue.PLAYER_LEVEL_DATA_KEY);
+
+        for (int i = 0; i < levelList.levelItems.Count; i++)
+        {
+            var levelItem = levelList.levelItems[i];
+            if (levelItem == null) continue;
+
+            GameObject obj = Instantiate(levelButtonPrefab, buttonContainer);
+            LevelUI ui = obj.GetComponent<LevelUI>();
+
+            if (ui == null)
+            {
+                Debug.LogWarning($"{levelButtonPrefab.name} missing LevelUI component.");
+                continue;
+            }
+
+            bool isLocked = GetLockState(levelItem, saveData);
+            ui.Setup(levelItem, this, isLocked);
+            spawnedLevels.Add(ui);
+
+            if (!isLocked)
+            {
+                int capturedIndex = i; // capture loop variable for delegate
+                ui.GetSelectButton().onClick.RemoveAllListeners();
+                ui.GetSelectButton().onClick.AddListener(() => OnLevelSelected(ui));
+
+                ui.GetEnterButton().onClick.RemoveAllListeners();
+                ui.GetEnterButton().onClick.AddListener(() => OnEnterLevel(capturedIndex, levelItem));
+            }
+        }
+    }
+
+
+    private bool GetLockState(LevelItemSO levelItem, LevelSaveData saveData)
+    {
+        if (saveData == null)
+        {
+            Debug.LogWarning($"[GetLockState] ⚠️ No save data found — returning default lock state for '{levelItem.levelId}' = {levelItem.isLocked}");
+            return levelItem.isLocked;
+        }
+
+        if (saveData.levels == null)
+        {
+            Debug.LogError($"[GetLockState] ❌ saveData.levelUnlockStates is NULL! Returning default lock state for '{levelItem.levelId}'.");
+            return levelItem.isLocked;
+        }
+        // Now check the specific level
+        saveData.BuildLookup();
+        if (saveData.levelLookup.TryGetValue(levelItem.levelId, out bool islocked))
+        {
+            Debug.Log($"[GetLockState] ✅ Level '{levelItem.levelId}' found — unlocked = {!islocked}, returning lock state = {islocked}");
+            return islocked; // true means locked
+        }
+
+        Debug.Log($"[GetLockState] ⚙️ Level '{levelItem.levelId}' not found — returning default lock = {levelItem.isLocked}");
+        return levelItem.isLocked;
+    }
+
+
+
+    private void OnEnterLevel(int index, LevelItemSO item)
+    {
+        GameReference.CurrentLevelIndex = index;
+        GameReference.LevelPrefab = item.levelPrefab;
+        GameReference.LoadGameScene();
+    }
+
+    public void OnLevelSelected(LevelUI ui)
+    {
+        if (selectedLevelUI != null)
+            selectedLevelUI.SetSelected(false);
+
+        selectedLevelUI = ui;
+        selectedLevelUI.SetSelected(true);
+
+        if (feedbackText)
+            feedbackText.text = $"Selected: {ui.GetData().levelName}";
+    }
+
+    protected override string GetFailureMessage() => "Please select an unlocked level.";
+}

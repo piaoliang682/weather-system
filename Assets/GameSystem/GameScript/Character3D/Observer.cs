@@ -1,0 +1,100 @@
+﻿using UnityEngine;
+
+public class NPCObserver : MonoBehaviour
+{
+    [Header("Sight Settings")]
+    public float sightDistance = 5f;
+    [Range(0, 180)]
+    public float sightAngle = 60f;
+    public LayerMask obstacleLayer; // walls, objects blocking sight
+
+
+    private void Update()
+    {
+        // Eye position (NPC) and target (Player head/chest)
+        //Vector3 eyePos = transform.position + Vector3.up * 1.5f;
+        //Vector3 targetPos = tes.position + Vector3.up * 1.0f;
+        //Vector3 dirToPlayer = (targetPos - eyePos).normalized;
+
+        //// 1️⃣ Check within field of view
+        //float angleToPlayer = Vector3.Angle(transform.forward, dirToPlayer);
+        //if (angleToPlayer > sightAngle)
+        //{
+        //    Debug.Log(angleToPlayer);
+
+        //}
+
+    }
+    /// <summary>
+    /// Check if player is currently within sight
+    /// </summary>
+    public bool CanSeePlayer(Transform player)
+    {
+        if (player == null) return false;
+
+        // Eye position (NPC) and target (Player head/chest)
+        Vector3 eyePos = transform.position + Vector3.up * 1.5f;
+        Vector3 targetPos = player.position + Vector3.up * 1.0f;
+        Vector3 dirToPlayer = (targetPos - eyePos).normalized;
+
+        // 1️⃣ Check within field of view
+        float angleToPlayer = Vector3.Angle(transform.forward, dirToPlayer);
+        if (angleToPlayer > sightAngle)
+        {
+            Debug.Log(angleToPlayer);
+            Debug.Log("no player");
+            return false;
+        }
+
+
+        // 2️⃣ Check within sight distance
+        float distanceToPlayer = Vector3.Distance(eyePos, targetPos);
+        if (distanceToPlayer > sightDistance)
+        {
+
+            Debug.Log("no player");
+            return false;
+        }
+
+
+        // 3️⃣ Raycast to player (no mask)
+        if (Physics.Raycast(eyePos, dirToPlayer, out RaycastHit hit, sightDistance))
+        {
+            Debug.DrawRay(eyePos, dirToPlayer * hit.distance, Color.yellow, 1f);
+
+            if (hit.collider.CompareTag("Player"))
+            {
+                Debug.Log($"{name} sees the player (hit {hit.collider.name})");
+                return true;
+            }
+            else
+            {
+                Debug.Log($"{name}'s view is blocked by {hit.collider.name}");
+                return false;
+            }
+        }
+        else
+        {
+            // No hit at all — maybe no colliders in that direction
+            Debug.DrawRay(eyePos, dirToPlayer * sightDistance, Color.red, 1f);
+            Debug.Log($"{name} raycast hit nothing toward {player.name}");
+            return false;
+        }
+    }
+
+
+    private void OnDrawGizmosSelected()
+    {
+        // Visualize sight distance
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(transform.position, sightDistance);
+
+        // Optional: visualize forward cone
+        Vector3 forward = transform.forward * sightDistance;
+        Quaternion leftRayRotation = Quaternion.Euler(0, -sightAngle / 2f, 0);
+        Quaternion rightRayRotation = Quaternion.Euler(0, sightAngle / 2f, 0);
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawRay(transform.position, leftRayRotation * forward);
+        Gizmos.DrawRay(transform.position, rightRayRotation * forward);
+    }
+}

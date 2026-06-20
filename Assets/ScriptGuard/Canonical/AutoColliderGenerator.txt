@@ -1,0 +1,135 @@
+using UnityEngine;
+
+[ExecuteInEditMode]
+public class AutoBoxColliderGenerator : MonoBehaviour
+{
+    public enum ColliderMode
+    {
+        PerMesh,       // Each mesh gets its own BoxCollider
+        CombinedBounds // One big collider on root that covers all meshes
+    }
+
+    [Header("Options")]
+    public ColliderMode mode = ColliderMode.PerMesh;
+    public bool replaceExisting = true;
+    public bool includeInactive = true;
+    public bool autoGenerateOnStart = false;
+    [Header("Collider Settings")]
+    public bool isTrigger = false;
+
+    [Header("Rigidbody Options (optional)")]
+    public bool autoAddRigidbodies = false;   // ✅ Only add rigidbodies if this is checked
+    public bool makeKinematic = true;
+    public bool useGravity = false;
+
+#if UNITY_EDITOR
+    [ContextMenu("Generate Box Colliders")]
+#endif
+    public void GenerateBoxColliders()
+    {
+        if (mode == ColliderMode.PerMesh)
+            GeneratePerMesh();
+        else
+            GenerateCombined();
+
+        // Only add rigidbodies if option is enabled
+        if (autoAddRigidbodies)
+            AddRigidbodiesToChildren();
+    }
+
+    private void GeneratePerMesh()
+    {
+
+        MeshFilter[] meshFilters = GetComponentsInChildren<MeshFilter>(includeInactive);
+        int count = 0;
+
+        foreach (var mf in meshFilters)
+        {
+            if (mf.sharedMesh == null) continue;
+
+            Collider existing = mf.GetComponent<Collider>();
+            if (existing && replaceExisting)
+                DestroyImmediate(existing);
+
+            if (mf.GetComponent<Collider>() != null) continue;
+
+            BoxCollider col = mf.gameObject.AddComponent<BoxCollider>();
+            var meshBounds = mf.sharedMesh.bounds;
+            col.center = meshBounds.center;
+            col.size = meshBounds.size;
+        col.isTrigger = isTrigger;
+            count++;
+        }
+
+        Debug.Log($"✅ Generated {count} BoxColliders under '{gameObject.name}' (Per Mesh Mode).");
+    }
+
+    private void GenerateCombined()
+    {
+        MeshRenderer[] renderers = GetComponentsInChildren<MeshRenderer>(includeInactive);
+        if (renderers.Length == 0)
+        {
+            Debug.LogWarning("No MeshRenderers found to calculate combined bounds.");
+            return;
+        }
+
+        Bounds combinedBounds = new Bounds(renderers[0].bounds.center, renderers[0].bounds.size);
+        for (int i = 1; i < renderers.Length; i++)
+            combinedBounds.Encapsulate(renderers[i].bounds);
+
+        Vector3 localCenter = transform.InverseTransformPoint(combinedBounds.center);
+        Vector3 localSize = transform.InverseTransformVector(combinedBounds.size);
+
+        BoxCollider existing = GetComponent<BoxCollider>();
+        if (existing && replaceExisting)
+            DestroyImmediate(existing);
+
+        BoxCollider collider = GetComponent<BoxCollider>();
+        if (!collider)
+            collider = gameObject.AddComponent<BoxCollider>();
+
+        collider.center = localCenter;
+        collider.size = localSize;
+        collider.isTrigger = isTrigger;
+        Debug.Log($"✅ Generated 1 combined BoxCollider on '{gameObject.name}' covering {renderers.Length} meshes.");
+    }
+
+#if UNITY_EDITOR
+    [ContextMenu("Clear All Colliders")]
+#endif
+    public void ClearAllColliders()
+    {
+        Collider[] colliders = GetComponentsInChildren<Collider>(includeInactive);
+        int count = colliders.Length;
+        foreach (var col in colliders)
+            DestroyImmediate(col);
+
+        Debug.Log($"🧹 Cleared {count} colliders under '{gameObject.name}'.");
+    }
+
+    private void AddRigidbodiesToChildren()
+    {
+        Collider[] colliders = GetComponentsInChildren<Collider>(includeInactive);
+        int added = 0;
+
+        foreach (var col in colliders)
+        {
+            GameObject go = col.gameObject;
+            if (go.GetComponent<Rigidbody>() == null)
+            {
+                Rigidbody rb = go.AddComponent<Rigidbody>();
+                rb.isKinematic = makeKinematic;
+                rb.useGravity = useGravity;
+                added++;
+            }
+        }
+
+        Debug.Log($"💡 Added Rigidbody to {added} GameObjects with colliders under '{gameObject.name}'.");
+    }
+
+    void Start()
+    {
+        if (Application.isPlaying && autoGenerateOnStart)
+            GenerateBoxColliders();
+    }
+}

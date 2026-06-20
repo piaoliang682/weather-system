@@ -1,0 +1,218 @@
+using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.Video;
+using System.Collections;
+using UnityEngine.Events;
+public class VideoUI : MonoBehaviour
+{
+    [Header("UI References")]
+    public GameObject rootPanel;
+    public GameObject videoControlPanel;
+    public VideoPlayer videoPlayer;
+    public RawImage videoDisplay;
+    public Slider progressSlider;
+
+    public Button videoPanelButton;
+    public Button playPauseButton;
+    public Sprite playIcon, pauseIcon;
+    public Button openButton;
+    public Button closeButton;
+    public Button prevButton, nextButton;  // NEW: playlist controls
+
+    [Header("Settings")]
+    public bool showOnStart = false;
+    public bool playOnShow = false;
+    public bool enableControl = true;
+    public bool autoPlay = false;
+    public string videoUrl = "";
+    public int defaultIndex;
+    public VideoClip[] playlist;   // NEW: list of VideoClips
+    private int currentIndex = 0;
+    public float autoHideDelay = 3f;  // seconds
+    private Coroutine hideCoroutine;
+    private bool isDragging = false;
+
+    [Header("Events")]
+    public UnityEvent onVideoEnd;
+    public UnityEvent onPlaylistEnd;
+    void Start()
+    {
+        rootPanel.SetActive(false);
+
+            videoControlPanel.SetActive(enableControl);  // Show at start
+
+
+
+        videoPanelButton.onClick.AddListener(showControl);
+        playPauseButton.onClick.AddListener(TogglePlayPause);
+        closeButton.onClick.AddListener(CloseVideo);
+        openButton.onClick.AddListener(ToggleActive);
+        prevButton.onClick.AddListener(PlayPrevious);
+        nextButton.onClick.AddListener(PlayNext);
+
+        progressSlider.onValueChanged.AddListener(OnSliderValueChanged);
+
+
+        videoPlayer.loopPointReached += OnVideoFinished;
+
+        if (showOnStart)
+        {
+            PlayAtIndex(defaultIndex);
+        }
+
+    }
+
+    void Update()
+    {
+        if (isDragging || !videoPlayer.isPlaying) return;
+        progressSlider.value = (float)videoPlayer.time;
+        if (autoPlay)
+        {
+            
+        }
+    }
+    void showControl()
+    {
+        if (enableControl)
+        {
+            videoControlPanel.SetActive(true);
+        }
+
+        // Restart auto-hide countdown
+        if (hideCoroutine != null)
+            StopCoroutine(hideCoroutine);
+        hideCoroutine = StartCoroutine(HideControlAfterDelay());
+    }
+
+    IEnumerator HideControlAfterDelay()
+    {
+        Debug.Log("video panel active");
+        yield return new WaitForSeconds(autoHideDelay);
+        videoControlPanel.SetActive(false);
+    }
+
+    void StopAndHide()
+    {
+        videoPlayer.Stop();
+        rootPanel.SetActive(false);
+    }
+    public void PlayAtIndex(int index)
+    {
+
+        showControl();
+
+        if (playlist == null || playlist.Length == 0)
+            PlayFromUrl(videoUrl);  // fall back to URL or default
+        else
+        {
+            currentIndex = (index + playlist.Length) % playlist.Length;
+            Debug.Log($"video index {currentIndex}");
+            videoPlayer.source = VideoSource.VideoClip;
+            videoPlayer.clip = playlist[currentIndex];
+            PrepareAndShow();
+        }
+    }
+
+    void PlayNext() => PlayAtIndex(currentIndex + 1);
+    void PlayPrevious() => PlayAtIndex(currentIndex - 1);
+
+    public void PlayFromUrl(string url)
+    {
+        if (string.IsNullOrEmpty(url))
+            videoPlayer.source = VideoSource.VideoClip;
+        else
+        {
+            videoPlayer.source = VideoSource.Url;
+            videoPlayer.url = url;
+        }
+        PrepareAndShow();
+    }
+
+    void PrepareAndShow()
+    {
+        videoPlayer.Prepare();
+        videoPlayer.prepareCompleted += OnPrepared;
+        rootPanel.SetActive(true);
+    }
+
+    void OnPrepared(VideoPlayer vp)
+    {
+        if (playOnShow)
+        {
+            vp.Play();
+
+            playPauseButton.image.sprite = pauseIcon;
+        }
+        else
+        {
+            vp.Pause();
+            playPauseButton.image.sprite =playIcon;
+        }
+
+            videoDisplay.texture = vp.texture;
+
+        progressSlider.minValue = 0f;
+        progressSlider.maxValue = (float)vp.length;
+        progressSlider.value = 0f;
+
+        vp.prepareCompleted -= OnPrepared;
+    }
+    void OnVideoFinished(VideoPlayer vp)
+    {
+        if (!autoPlay)
+        {
+            onVideoEnd?.Invoke();
+            return;
+        }
+
+        // autoPlay = true ¡ú continue playlist
+        if (currentIndex + 1 >= playlist.Length)
+        {
+            onPlaylistEnd?.Invoke();
+            return;
+        }
+
+        PlayNext();
+    }
+    void TogglePlayPause()
+    {
+        if (videoPlayer.isPlaying)
+        {
+            videoPlayer.Pause();
+            playPauseButton.image.sprite = playIcon;
+        }
+        else
+        {
+            videoPlayer.Play();
+            playPauseButton.image.sprite = pauseIcon;
+        }
+    }
+
+    void OnSliderValueChanged(float value)
+    {
+        if (isDragging && videoPlayer.canSetTime)
+            videoPlayer.time = value;
+    }
+
+    public void OnBeginDrag() => isDragging = true;
+    public void OnEndDrag() => isDragging = false;
+
+    void CloseVideo()
+    {
+        videoPlayer.Stop();
+        rootPanel.SetActive(false);
+    }
+    void ToggleActive()
+    {
+        if (rootPanel.activeSelf)
+        {
+            StopAndHide();
+        }
+        else
+        {
+
+            PlayAtIndex(currentIndex);
+        }
+    }
+
+}

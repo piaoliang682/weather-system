@@ -1,0 +1,59 @@
+using UnityEngine;
+
+public class OrderSlot : MonoBehaviour
+{
+    public int slotIndex;
+    public string slotName;
+
+    public OrderObject currentItem;
+    public Transform snapPoint;
+
+
+    public void ClearSlot()
+    {
+        currentItem = null;
+    }
+    //private void OnTriggerEnter(Collider other)
+    //{
+    //    OrderObject item = other.GetComponent<OrderObject>();
+    //    DraggableObject draggable = other.GetComponent<DraggableObject>();
+    //    if (item != null)
+    //    {
+    //        currentItem = item;
+    //        item.currentSlot = transform;
+
+    //        Debug.Log($"[OrderSlot {slotIndex}] ENTER �� Item {item.correctIndex} placed in slot {slotIndex}");
+    //    }
+    //    SnapItem(item);
+    //    draggable.StopDragging();
+    //}
+
+    //private void OnTriggerExit(Collider other)
+    //{
+    //    OrderObject item = other.GetComponent<OrderObject>();
+
+    //    if (item != null && item == currentItem)
+    //    {
+    //        Debug.Log($"[OrderSlot {slotIndex}] EXIT �� Item {item.correctIndex} removed from slot {slotIndex}");
+
+    //        currentItem = null;
+    //        item.currentSlot = null;
+    //    }
+    //}
+
+    private void Update()
+    {
+
+    }
+
+    private void SnapItem(OrderObject item)
+    {
+        Rigidbody rb = item.GetComponent<Rigidbody>();
+
+        rb.velocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+
+        item.transform.position = transform.position;
+        item.transform.rotation = transform.rotation;
+    }
+}

@@ -1,0 +1,91 @@
+﻿using UnityEngine;
+using UnityEngine.Events;
+
+public class Projectile : MonoBehaviour
+{
+    [Tooltip("Damage which a projectile deals to another object.")]
+    public int damage = 10;
+
+    [Tooltip("Target tag to identify which object this projectile should collide with.")]
+    public string targetTag = "Enemy";
+
+    [Tooltip("Whether the projectile is destroyed upon collision.")]
+    public bool destroyedByCollision = true;
+
+    [Tooltip("Time (in seconds) before the projectile auto-destroys.")]
+    public float lifeTime = 5f;
+
+    [Header("Visual Effects")]
+    [Tooltip("Effect prefab to instantiate upon collision (e.g. explosion, hit effect).")]
+    public GameObject hitEffectPrefab;
+
+    [Tooltip("Time after which the effect object will be destroyed.")]
+    public float effectLifetime = 2f;
+
+    [Tooltip("Integer scale factor for hit effect size.")]
+    public int effectScale = 1;  // NEW FIELD
+
+    [Header("Events")]
+    public UnityEvent onCollision;  // Invoked when hitting the target
+
+    private void Start()
+    {
+        // Destroy projectile after its lifetime
+        Destroy(gameObject, lifeTime);
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        HandleHit(other.gameObject);
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        HandleHit(collision.gameObject);
+    }
+
+    public void SetTargetTag(string name)
+    {
+        targetTag = name;
+    }
+
+    /// <summary>
+    /// Shared hit logic for both trigger and collision.
+    /// </summary>
+    private void HandleHit(GameObject hitObject)
+    {
+        // Invoke UnityEvents (for external listeners)
+        onCollision.Invoke();
+
+        // Spawn visual hit effect
+        if (hitEffectPrefab != null)
+        {
+            GameObject effect = Instantiate(hitEffectPrefab, transform.position, Quaternion.identity);
+
+            // Apply integer scale (convert to float for uniform scaling)
+            effect.transform.localScale *= effectScale;
+
+            Destroy(effect, effectLifetime);
+        }
+
+        // Destroy projectile after impact
+        if (destroyedByCollision)
+        {
+            Destroy(gameObject);
+        }
+        Debug.Log(hitObject.tag);
+        if (!hitObject.CompareTag(targetTag))
+            return;
+
+        // Apply damage if the target has CharacterStats
+        CharacterStats target = hitObject.GetComponent<CharacterStats>();
+        if (target != null)
+        {
+            target.TakeDamage(damage);
+        }
+        else
+        {
+            Debug.Log("no character stat detected");
+        }
+    }
+}

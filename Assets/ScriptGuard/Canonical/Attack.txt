@@ -1,0 +1,73 @@
+using UnityEngine;
+
+public class Attack : MonoBehaviour
+{
+    [Header("Attack Settings")]
+    public string targetTag;
+    public bool autoAttack=true;
+    public GameObject projectilePrefab;  // Projectile with Rigidbody
+    public float projectileSpeed = 20f;
+    public float attackRate = 1f; //time for 1 attack
+    public Transform attackPoint;
+
+
+    private Animator animator;
+    private float nextAttackTime = 0f;
+
+    void Start()
+    {
+        animator=GetComponent<CharacterStats>().GetAnimator();
+    }
+
+    private void Update()
+    {
+        if (autoAttack)
+        {
+            HandleAttack();
+        }
+    }
+    public void HandleAttack()
+    {
+        if (Time.time <= nextAttackTime)
+        {
+            return;
+        }
+        nextAttackTime = Time.time + 1f / attackRate;
+        if (animator != null)
+        {
+            animator.SetTrigger("Attack");
+        Debug.Log("attack!");
+        }
+
+            PerformAttack(); //might call in animator
+
+    }
+    public virtual void PerformAttack()
+    {
+
+        if (projectilePrefab == null || attackPoint == null)
+        {
+            Debug.LogWarning("Missing projectilePrefab or attackPoint!");
+            return;
+        }
+
+        GameAudioManager.Instance.PlayAudio("Fire002");
+        // Instantiate the projectile at the attack point
+        GameObject proj = Instantiate(
+            projectilePrefab,
+            attackPoint.position,
+            attackPoint.rotation
+        );
+        proj.GetComponent<Projectile>().SetTargetTag(targetTag);
+        // Add force to propel it forward
+        Rigidbody rb = proj.GetComponent<Rigidbody>();
+        if (rb != null)
+        {
+            rb.AddForce(attackPoint.forward * projectileSpeed, ForceMode.Impulse);
+        }
+        else
+        {
+            Debug.LogWarning("Projectile prefab has no Rigidbody!");
+        }
+    }
+}

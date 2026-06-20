@@ -1,0 +1,117 @@
+using UnityEngine;
+using UnityEngine.Events;
+
+[RequireComponent(typeof(Collider))]
+[RequireComponent(typeof(Rigidbody))]
+public class DraggableObject : MonoBehaviour
+{
+    [Header("Optional Drag Events")]
+    public UnityEvent onBeginDrag;
+    public UnityEvent onDrag;
+    public UnityEvent onEndDrag;
+
+    [Header("Distance Constraint (Spherical Shell)")]
+    private Transform player;
+    public float minDistance = 1.5f;
+    public float maxDistance = 5f;
+
+    [Header("Physics Drag")]
+    public float dragStrength = 25f;
+
+
+    private Camera mainCamera;
+    private Rigidbody rb;
+    private Vector3 offset;
+    private Vector3 targetPos;
+    private bool isDragging;
+
+    private void Start()
+    {
+        mainCamera = Camera.main;
+        rb = GetComponent<Rigidbody>();
+        rb.interpolation = RigidbodyInterpolation.Interpolate;
+
+        player = GameReference.Player.transform;
+        if (player == null)
+            Debug.LogError("DraggableObject: Player reference is missing.");
+    }
+
+    private void OnMouseDown()
+    {
+        isDragging = true;
+
+        Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
+        if (Physics.Raycast(ray, out RaycastHit hit))
+        {
+            offset = transform.position - hit.point;
+        }
+
+        onBeginDrag?.Invoke();
+    }
+
+    private void OnMouseDrag()
+    {
+        if (!isDragging || player == null) return;
+
+        Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
+
+        float depth = Vector3.Distance(
+            mainCamera.transform.position,
+            transform.position
+        );
+
+        Vector3 target = ray.origin + ray.direction * depth + offset;
+
+        Vector3 center = player.position;
+        Vector3 dir = target - center;
+
+        if (dir.sqrMagnitude > 0.0001f)
+        {
+            float clampedDist = Mathf.Clamp(dir.magnitude, minDistance, maxDistance);
+            target = center + dir.normalized * clampedDist;
+        }
+
+        targetPos = target;
+        onDrag?.Invoke();
+    }
+
+    private void FixedUpdate()
+    {
+        if (!isDragging) return;
+
+        Vector3 delta = targetPos - rb.position;
+        rb.velocity = delta * dragStrength;
+    }
+
+    private void OnMouseUp()
+    {
+        if (!isDragging) return;
+
+        isDragging = false;
+        rb.velocity = Vector3.zero;
+        onEndDrag?.Invoke();
+    }
+
+    /// <summary>
+    /// Public method to stop dragging from external scripts
+    /// </summary>
+    public void StopDragging()
+    {
+        if (!isDragging) return;
+
+        isDragging = false;
+        rb.velocity = Vector3.zero;
+        onEndDrag?.Invoke();
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        if (player == null) return;
+
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(player.position, minDistance);
+
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawWireSphere(player.position, maxDistance);
+    }
+}

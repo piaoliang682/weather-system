@@ -1,0 +1,126 @@
+using UnityEngine;
+using UnityEngine.AI;
+using System.Collections;
+[RequireComponent(typeof(NavMeshAgent))]
+public class AIController : MonoBehaviour
+{
+    [Header("References")]
+    [Tooltip("Assign the player's Transform here.")]
+    private Transform target;
+    
+    [Header("Range Settings")]
+    [Tooltip("Distance at which the tank will start following the player.")]
+    public float followRange = 30f;
+
+    [Tooltip("Distance within which the tank will stop chasing and start shooting.")]
+    public float stopDistance = 10f;
+
+    [Header("Movement Settings")]
+    [Tooltip("Speed at which the tank moves toward the player.")]
+    public float walkSpeed = 15f;
+
+    [Tooltip("Rotation speed (degrees/sec) when turning the tank body.")]
+    public float rotationSpeed = 20f;
+
+
+    private Coroutine stuntRoutine;
+
+    public Animator anim;
+
+    private bool isStunt;
+    private float outOfRangeTimer;
+    private Turret turret;
+    private NavMeshAgent agent;
+    private Idle idleBehavior;
+    private NPCResponse responseBehaviour;
+    private Attack attackBehaviour;
+    private void Awake()
+    {
+        isStunt = false;
+    }
+    void Start()
+    {
+
+        target = GameReference.Player.transform;
+        agent = GetComponent<NavMeshAgent>();
+        agent.speed = walkSpeed;
+        agent.updateRotation = true;
+        agent.stoppingDistance = stopDistance;
+        idleBehavior = GetComponent<Idle>();
+        responseBehaviour = GetComponent<NPCResponse>();
+        attackBehaviour = GetComponent<Attack>();   
+        // Optional auto-find turret
+        turret = GetComponentInChildren<Turret>();
+    }
+
+    void Update()
+    {
+        if (!target) return;
+        if (isStunt) return;
+        float distance = Vector3.Distance(transform.position, target.position);
+
+        if (anim != null)
+        {
+            float speed = agent.velocity.magnitude;   // current movement speed
+            anim.SetFloat("Speed", speed);
+        }
+
+        // Idle
+        if (distance > followRange)
+        {
+            // count time while target is out of range
+            outOfRangeTimer += Time.deltaTime;
+            if (outOfRangeTimer >= 5f)
+            {
+                QuestManager.Instance.CompleteObjective("Escape");
+            }
+            // Player too far → idle
+            idleBehavior.HandleIdle(agent);
+
+            return;
+        }
+
+        // --- CHASE / STOP LOGIC ---
+        if (distance > stopDistance)
+        {
+            agent.isStopped = false;
+            agent.SetDestination(target.position);
+        }
+        else
+        {
+            agent.isStopped = true;
+            attackBehaviour.HandleAttack();
+        }
+
+        // --- TURRET ROTATION ---
+        if (turret != null)
+            turret.AimTarget(target);
+    }
+
+    public void SetStunt(float duration)
+    {
+        // Cancel previous stun if exists
+        if (stuntRoutine != null)
+            StopCoroutine(stuntRoutine);
+
+        stuntRoutine = StartCoroutine(StuntTimer(duration));
+    }
+
+    private IEnumerator StuntTimer(float duration)
+    {
+        isStunt = true;
+        // --- Disable AI components ---
+        agent.isStopped = true;          // Stop NavMesh movement
+        agent.updateRotation = false;    // Prevent AI from rotating
+
+
+        yield return new WaitForSeconds(duration);
+
+
+        // --- Re-enable AI components ---
+        agent.isStopped = false;
+        agent.updateRotation = true;
+        isStunt = false;
+        stuntRoutine = null;
+    }
+}

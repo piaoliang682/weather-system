@@ -1,0 +1,49 @@
+﻿using UnityEngine;
+using System.Collections;
+[RequireComponent(typeof(Collider))]
+public class DeadZone : MonoBehaviour
+{
+    [Header("Dead Zone Settings")]
+    public int damageAmount = 9999;           // How much damage to apply (use big number for instant death)
+    public bool respawnOnDamage = true;       // Whether to teleport to spawn point after applying damage
+
+    private void Reset()
+    {
+        // Automatically set this collider as a trigger when script is added
+        Collider col = GetComponent<Collider>();
+        if (col != null)
+            col.isTrigger = true;
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        // Try to get CharacterStats on the object or its parent
+        CharacterStats stats = other.GetComponent<CharacterStats>();
+        if (stats == null)
+            stats = other.GetComponentInParent<CharacterStats>();
+
+        if (stats != null)
+        {
+            // Apply damage
+            stats.TakeDamage(damageAmount);
+            Debug.Log($"☠️ {other.name} entered DeadZone — {damageAmount} damage applied.");
+
+            // Respawn at spawn point if assigned
+            if (respawnOnDamage )
+            {
+                StartCoroutine(TeleportAfterDelay(other.transform));
+            }
+        }
+    }
+
+    private IEnumerator TeleportAfterDelay(Transform target)
+    {
+        yield return new WaitForSeconds(0.1f); // short delay to let damage process
+
+
+        target.position = SpawnPointManager.Instance.GetCurrentSpawnPoint().Position ;
+            //target.rotation = GameReference.SpawnPointPosition;
+            Debug.Log($"🔁 {target.name} teleported to spawn point.");
+
+    }
+}

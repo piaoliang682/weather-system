@@ -1,0 +1,178 @@
+using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.SceneManagement;
+
+public class EndCreditsScroll : MonoBehaviour
+{
+    [Header("Scroll Settings")]
+    [Tooltip("Automatic scroll speed (pixels per second).")]
+    public float scrollSpeed = 50f;
+
+    [Tooltip("Delay before scrolling starts (seconds).")]
+    public float startDelay = 1f;
+
+    [Tooltip("Delay after reaching end before next action.")]
+    public float endDelay = 2f;
+
+    [Tooltip("Show ScrollView when scene starts?")]
+    public bool showOnStart = true;
+
+    [Header("References")]
+    public GameObject scrollView;          // The main ScrollView GameObject
+    public ScrollRect scrollRect;          // The ScrollRect component
+    public RectTransform creditsContent;   // The content RectTransform
+    public Button endButton;
+
+    [Header("Optional")]
+    public AudioSource musicSource;
+    public AudioClip creditsBGM;
+    public string nextSceneName;
+
+    [Header("Fade-In Settings")]
+    [Tooltip("Images that will fade in based on scroll progress (0-1).")]
+    public Image[] fadeImages;
+
+    [Tooltip("At what normalized scroll position the image starts to fade in (0 = top, 1 = bottom).")]
+    [Range(0f, 1f)] public float fadeStart = 0.2f;
+
+    [Tooltip("At what normalized scroll position the image is fully visible.")]
+    [Range(0f, 1f)] public float fadeEnd = 0.9f;
+
+    private float startTime;
+    private bool autoScrollActive = false;
+    private float lastUserScrollTime = 0f;
+    private float resumeDelay = 1f; // seconds before resuming auto scroll after user stops
+
+    private float contentHeight;
+    private float viewportHeight;
+
+    void Start()
+    {
+        endButton.onClick.AddListener(OnCreditsFinished);
+        if (scrollView != null)
+            scrollView.SetActive(showOnStart);
+
+        if (!showOnStart)
+            return;
+
+        startTime = Time.time + startDelay;
+
+        if (musicSource != null)
+        {
+            musicSource.clip = creditsBGM;
+            musicSource.Play();
+        }
+
+
+        if (scrollRect != null && creditsContent != null)
+        {
+            viewportHeight = scrollRect.viewport.rect.height;
+            contentHeight = creditsContent.rect.height;
+        }
+        // Initialize fade image alphas to 0
+        if (fadeImages != null)
+        {
+            foreach (var img in fadeImages)
+            {
+                if (img != null)
+                {
+                    Color c = img.color;
+                    c.a = 0f;
+                    img.color = c;
+                }
+            }
+        }
+
+
+    }
+
+    void Update()
+    {
+        if (!showOnStart) return;
+        if (scrollRect == null || creditsContent == null) return;
+
+        // Wait for start delay
+        if (Time.time < startTime)
+            return;
+
+        // Check for user scroll (mouse drag, scroll wheel, or touch)
+        bool userScrolling =
+            Input.GetMouseButton(0) ||
+            Mathf.Abs(Input.GetAxis("Mouse ScrollWheel")) > 0.001f ||
+            Input.touchCount > 0;
+
+        if (userScrolling)
+        {
+            // User interacting ¡ª pause auto scroll
+            autoScrollActive = false;
+            lastUserScrollTime = Time.time;
+        }
+        else
+        {
+            // Resume auto scroll after user stops for a bit
+            if (Time.time > lastUserScrollTime + resumeDelay)
+                autoScrollActive = true;
+        }
+
+        // Automatic scrolling
+        if (autoScrollActive)
+        {
+            float delta = (scrollSpeed / contentHeight) * Time.deltaTime;
+            float newPos = scrollRect.verticalNormalizedPosition - delta;
+            scrollRect.verticalNormalizedPosition = Mathf.Clamp01(newPos);
+        }
+
+        // If credits reach the end
+        if (scrollRect.verticalNormalizedPosition <= 0.001f)
+        {
+            Invoke(nameof(OnCreditsFinished), endDelay);
+            enabled = false;
+        }
+
+        // Fade-in effect based on scroll position
+        UpdateFadeImages(scrollRect.verticalNormalizedPosition);
+    }
+    void UpdateFadeImages(float scrollPos)
+    {
+        // scrollPos: 1 (top) ¡ú 0 (bottom)
+        float normalizedProgress = 1f - scrollPos; // invert so 0=top, 1=bottom
+
+        if (fadeImages == null) return;
+
+        foreach (var img in fadeImages)
+        {
+            if (img == null) continue;
+
+            float t = Mathf.InverseLerp(fadeStart, fadeEnd, normalizedProgress);
+            float alpha = Mathf.Clamp01(t);
+
+            Color c = img.color;
+            c.a = alpha;
+            img.color = c;
+        }
+    }
+    void OnCreditsFinished()
+    {
+        if (scrollView != null)
+            scrollView.SetActive(false);
+
+        if (!string.IsNullOrEmpty(nextSceneName))
+        {
+            SceneManager.LoadScene(nextSceneName);
+        }
+        else
+        {
+            Debug.Log("Credits finished.");
+        }
+    }
+
+    // Optional manual trigger if not showing on start
+    public void ShowCredits()
+    {
+        if (scrollView != null)
+            scrollView.SetActive(true);
+
+        showOnStart = true;
+        Start();
+    }
+}

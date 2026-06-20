@@ -1,0 +1,59 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class Turret : MonoBehaviour
+{
+    public Transform turretTransform;
+    public float turretLagSpeed = 6;
+    // Start is called before the first frame update
+    void Start()
+    {
+        
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        
+    }
+    public void AimTarget(Transform target)
+    {
+        Vector3 lookDir = (target.position - turretTransform.position);
+        lookDir.y = 0f; // Keep rotation only on the horizontal plane
+
+        AimDirection( lookDir);
+    }
+    public void AimDirection( Vector3 lookDir)
+    {
+        Vector3 input = new Vector3(lookDir.x, 0f, lookDir.z);
+        float inputMag = Mathf.Clamp01(input.magnitude);
+
+        if (inputMag > 0.01f)
+        {
+            if (lookDir.sqrMagnitude > 0.0001f) // ignore zero vector
+            {
+                Quaternion targetRot = Quaternion.LookRotation(lookDir);
+
+                // Smooth interpolation ¡ª 'turretLagSpeed' controls how fast it reacts
+                turretTransform.rotation = Quaternion.Slerp(
+                    turretTransform.rotation,
+                    targetRot,
+                    turretLagSpeed * Time.deltaTime
+                );
+
+
+                //    // Smoothly rotate toward target rotation at a given degrees/second rate
+                //    float step = turretLagSpeed * Time.deltaTime;  // degrees per second
+                //    float angleDiff = Quaternion.Angle(turretTransform.rotation, targetRot); // how far to turn
+
+                //    if (angleDiff > 0.01f)
+                //    {
+                //        // Convert step to a normalized t value (0¨C1) for Slerp
+                //        float t = Mathf.Clamp01(step / angleDiff);
+                //        turretTransform.rotation = Quaternion.Slerp(turretTransform.rotation, targetRot, t);
+                //    }
+                }
+            }
+    }
+}

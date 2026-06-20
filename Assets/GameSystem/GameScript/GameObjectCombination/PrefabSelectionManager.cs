@@ -1,0 +1,121 @@
+﻿using UnityEngine;
+using System.Collections.Generic;
+
+public class PrefabSelectionManager : MonoBehaviour
+{
+    [Header("Prefab Parents (each body part anchor)")]
+    public List<Transform> prefabParentList = new List<Transform>();
+
+    [Header("Current Character Data (optional SO)")]
+    public PrefabVariantGroupRegistrySO currentData;
+
+    public List<PrefabScroller> characterScrollerList = new List<PrefabScroller>();
+    // Cache for quick lookup (e.g. "Head" -> Transform)
+    private readonly Dictionary<string, Transform> parentLookup =
+        new Dictionary<string, Transform>();
+
+
+    void Awake()
+    {
+        // Build lookup dictionary once
+        foreach (var parent in prefabParentList)
+        {
+            if (parent != null && !parentLookup.ContainsKey(parent.name))
+                parentLookup[parent.name] = parent;
+        }
+    }
+
+    void Start()
+    {
+        if (currentData != null)
+            ApplyPrefabData(currentData);
+
+        foreach (var ui in characterScrollerList)
+        {
+
+        }
+    }
+
+    /// <summary>
+    /// Applies all variant data to the character (used when loading a preset or initial setup)
+    /// </summary>
+    public void ApplyPrefabData(PrefabVariantGroupRegistrySO data)
+    {
+        if (data == null) return;
+        currentData = data;
+
+        foreach (var parent in prefabParentList)
+        {
+            if (parent == null) continue;
+
+            var variantGroup = data.GetVariationGroupByName(parent.name);
+            if (variantGroup == null) continue;
+
+            var newPrefab = variantGroup.defaultPrefab ??
+                            (variantGroup.variants != null && variantGroup.variants.Count > 0
+                                ? variantGroup.variants[0]
+                                : null);
+
+            if (newPrefab == null) continue;
+
+            // ✅ Skip if already using the same part
+            if (parent.childCount > 0 && parent.GetChild(0).name == newPrefab.name)
+                continue;
+
+            ReplaceChild(parent, newPrefab);
+        }
+    }
+
+    /// <summary>
+    /// Sets a specific part to a chosen variant (e.g. "Head" -> "RedHair")
+    /// </summary>
+    public void SetPrefab(string variantGroupName, string variantName)
+    {
+        if (currentData == null)
+        {
+            Debug.LogWarning("No character data assigned!");
+            return;
+        }
+
+        if (!parentLookup.TryGetValue(variantGroupName, out var targetParent) || targetParent == null)
+        {
+            Debug.LogWarning($"No parent found with name '{variantGroupName}'");
+            return;
+        }
+
+        var group = currentData.GetVariationGroupByName(variantGroupName);
+        if (group == null)
+        {
+            Debug.LogWarning($"No variant group found with name '{variantGroupName}' in data");
+            return;
+        }
+
+        var newPrefab = group.GetVariantById(variantName);
+        if (newPrefab == null)
+        {
+            Debug.LogWarning($"Variant '{variantName}' not found in group '{variantGroupName}'");
+            return;
+        }
+
+        // ✅ Skip if already using the same part
+        if (targetParent.childCount > 0 && targetParent.GetChild(0).name == newPrefab.name)
+            return;
+
+        ReplaceChild(targetParent, newPrefab);
+    }
+
+    /// <summary>
+    /// Replaces all children of parent with a new prefab instance
+    /// </summary>
+    private static void ReplaceChild(Transform parent, GameObject newPrefab)
+    {
+        for (int i = parent.childCount - 1; i >= 0; i--)
+            Object.Destroy(parent.GetChild(i).gameObject);
+
+        var instance = Object.Instantiate(newPrefab, parent);
+        instance.name = newPrefab.name; // keep clean names
+        instance.transform.localPosition = Vector3.zero;
+        instance.transform.localRotation = Quaternion.identity;
+        instance.transform.localScale = Vector3.one;
+    }
+}

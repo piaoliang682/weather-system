@@ -1,0 +1,221 @@
+using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.Events;
+
+[RequireComponent(typeof(Timer))]
+public class QuizManager : InteractivePanelBase
+{
+    [Header("Main Quiz UI")]
+    public bool isShuffle;
+    public Text questionText;
+    public Image questionImage;
+    public Button[] answerButtons; // 4 buttons
+    public Button submitButton;
+
+    [Header("Feedback Panel")]
+    public CanvasGroup feedbackUI;
+    public Button retryButton;
+    public Button continueButton;
+    public Text finalSummaryText;
+
+    [Header("Question Set (ScriptableObject)")]
+    public QuestionSet questionSet;
+
+    private QuizQuestion[] questions;
+
+    [Header("Sound Effects")]
+    public AudioClip correctSound;
+    public AudioClip wrongSound;
+
+    [Header("Timer")]
+    public Timer timer;
+
+    [Header("Events")]
+    public UnityEvent onCorrectAnswer;
+    public UnityEvent onQuizCompleted;
+
+    private int currentIndex;
+    private int selectedAnswer;
+    private bool quizInProgress;
+    private int score;
+    private bool[] questionAnswered;
+    private void Start()
+    {
+        if (timer == null) timer = GetComponent<Timer>();
+
+        SetUIVisibility(feedbackUI, false);
+
+        submitButton.onClick.AddListener(OnSubmit);
+        retryButton.onClick.AddListener(OnRetry);
+        foreach (var btn in answerButtons)
+            btn.onClick.AddListener(() => OnAnswerButtonClicked(btn));
+
+        timer.OnTimeout.AddListener(EndQuiz);
+    }
+
+    private void SetUIVisibility(CanvasGroup cg, bool on)
+    {
+        cg.gameObject.SetActive(true);
+        Debug.Log($"Setting {cg.gameObject.name} visibility to {(on ? "ON" : "OFF")}");
+        cg.alpha = on ? 1f : 0f;
+        cg.interactable = on;
+        cg.blocksRaycasts = on;
+    }
+
+    protected override void ShowPanel()
+    {
+        base.ShowPanel();
+        StartQuiz();
+
+    }
+
+
+    public void StartQuiz()
+    {
+        if (questionSet == null || questionSet.questions == null || questionSet.questions.Length == 0)
+        {
+            Debug.LogError("Question set is empty!");
+            return;
+        }
+        Debug.Log("Quiz On!");
+        if(finalSummaryText!=null)
+        finalSummaryText.text = "";
+        continueButton.GetComponentInChildren<Text>().text = "下一题";
+        retryButton.GetComponentInChildren<Text>().text = "重新回答";
+
+        questions = questionSet.GetQuestionPack();
+        if (isShuffle)
+        {
+        questions = questionSet.GetShuffledQuestions();
+        }
+
+
+        currentIndex = 0;
+        score = 0;
+        quizInProgress = true;
+        questionAnswered = new bool[questions.Length]; // ✨ 初始化标记数组
+        for (int i = 0; i < questionAnswered.Length; i++)
+        {
+            questionAnswered[i] = false; // 全部设为“未答过”
+        }
+        timer.ResetTimer();
+        timer.StartTimer();
+        SetUIVisibility(feedbackUI, false);
+        LoadQuestion();
+    }
+    private void LoadQuestion()
+    {
+        var q = questions[currentIndex];
+
+        if (q.questionText != null)
+            questionText.text = q.questionText;
+
+        if (q.questionSprite!=null)
+        questionImage.sprite = q.questionSprite;
+        selectedAnswer = -1;
+        submitButton.interactable = false;
+        feedbackText.text = "";
+
+        for (int i = 0; i < answerButtons.Length; i++)
+        {
+            answerButtons[i].GetComponentInChildren<Text>().text = q.answers[i];
+            answerButtons[i].interactable = true;
+        }
+    }
+
+    private void OnAnswerButtonClicked(Button btn)
+    {
+        for (int i = 0; i < answerButtons.Length; i++)
+        {
+            answerButtons[i].interactable = true;
+            if (btn == answerButtons[i]) selectedAnswer = i;
+        }
+        btn.interactable = false;
+        submitButton.interactable = (selectedAnswer >= 0);
+    }
+
+    private void OnSubmit()
+    {
+        if (selectedAnswer < 0 || !quizInProgress) return;
+
+        var q = questions[currentIndex];
+        bool correct = selectedAnswer == q.correctAnswerIndex;
+        feedbackText.text = correct ? "正确!" : "错误!";
+        Debug.Log($"Selected: {selectedAnswer}, Correct: {q.correctAnswerIndex}");
+
+        if (correct)
+        {
+            if (!questionAnswered[currentIndex]) // ✨ 首次得分
+            {
+                score++;
+
+            }
+                onCorrectAnswer?.Invoke();
+            PlaySound(correctSound);
+
+        }
+        else
+        {
+            PlaySound(wrongSound);
+        }
+        questionAnswered[currentIndex] = true; // ✨ 标记已答
+        submitButton.interactable = false;
+        foreach (var btn in answerButtons) btn.interactable = false;
+
+        continueButton.onClick.RemoveAllListeners();
+        continueButton.onClick.AddListener(OnContinue);
+        retryButton.onClick.RemoveAllListeners();
+        retryButton.onClick.AddListener(OnRetry);
+        continueButton.gameObject.SetActive(correct);
+
+        SetUIVisibility(feedbackUI, true);
+    }
+
+    private void OnRetry()
+    {
+        SetUIVisibility(feedbackUI, false);
+        LoadQuestion();
+    }
+
+    private void OnContinue()
+    {
+        SetUIVisibility(feedbackUI, false);
+        currentIndex++;
+        Debug.Log(currentIndex);
+        if (currentIndex < questions.Length)
+            LoadQuestion();
+        else
+            EndQuiz();
+    }
+
+    private void EndQuiz()
+    {
+        quizInProgress = false;
+        timer.StopTimer();
+
+        if (finalSummaryText!=null)
+        finalSummaryText.text = $"测验结束!\n得分: {score} / {questions.Length}";
+        feedbackText.text = "";
+
+        continueButton.onClick.RemoveAllListeners();
+        retryButton.onClick.RemoveAllListeners();
+        retryButton.onClick.AddListener(StartQuiz);
+        continueButton.onClick.AddListener(() => SetUIVisibility(feedbackUI, false));
+        continueButton.onClick.AddListener(() => panel.SetActive(false));
+        onQuizCompleted?.Invoke();
+
+        continueButton.GetComponentInChildren<Text>().text = "结束";
+        retryButton.GetComponentInChildren<Text>().text = "重新开始";
+        continueButton.gameObject.SetActive(true);
+
+        SetUIVisibility(feedbackUI, true);
+    }
+
+    private void PlaySound(AudioClip clip)
+    {
+        if (audioSource != null && clip != null)
+        {
+            audioSource.PlayOneShot(clip);
+        }
+    }
+}

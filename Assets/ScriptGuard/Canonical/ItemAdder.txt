@@ -1,0 +1,70 @@
+using UnityEngine;
+using UnityEngine.UI;  // Or TMPro if using TextMeshPro
+
+[RequireComponent(typeof(Collider))]
+public class InventoryAdder3D : MonoBehaviour
+{
+    [Header("Item to give")]
+    public InventoryItemSO itemToGive; // Your ScriptableObject Item
+
+    [Header("Quantity")]
+    public int quantity = 1;
+
+    [Header("Auto-destroy after pickup")]
+    public bool destroyOnPickup = true;
+
+    [Header("Pickup Text Prefab (optional)")]
+    public GameObject pickupTextPrefab; // A world-space Canvas or TextMesh prefab
+
+    private void Reset()
+    {
+        // Ensure collider is trigger by default
+        var col = GetComponent<Collider>();
+        col.isTrigger = true;
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (!other.CompareTag("Player")) return;
+
+        if (PlayerInventory.Instance == null)
+        {
+            Debug.LogError("InventoryManager.Instance not found!");
+            return;
+        }
+
+        if (itemToGive == null)
+        {
+            Debug.LogWarning("No Item assigned to InventoryAdder3D.");
+            return;
+        }
+
+        PlayerInventory.Instance.Add(itemToGive, quantity);
+        Debug.Log($"[InventoryAdder3D] Added {quantity}x {itemToGive.id} to inventory.");
+
+        if (pickupTextPrefab != null)
+        {
+            Vector3 spawnPos = transform.position + Vector3.up * 2f; // adjust Y offset for readability
+            GameObject txtObj = Instantiate(pickupTextPrefab, spawnPos, Quaternion.identity);
+
+            // If using UnityEngine.UI.Text:
+            var uiText = txtObj.GetComponentInChildren<Text>();
+            if (uiText != null)
+            {
+                uiText.text = $"�����{quantity}�� ��{itemToGive.id}��";
+            }
+
+            // If using TextMeshPro:
+            // var tmp = txtObj.GetComponentInChildren<TMPro.TextMeshPro>();
+            // if (tmp != null)
+            // {
+            //     tmp.text = $"�����{quantity}�� ��{itemToGive.id}��";
+            // }
+
+            Destroy(txtObj, 1.5f);
+        }
+
+        if (destroyOnPickup)
+            Destroy(gameObject);
+    }
+}

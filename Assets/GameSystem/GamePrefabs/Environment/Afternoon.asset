@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 892f221e987bc3543b5270a7779063d6, type: 3}
+  m_Name: Afternoon
+  m_EditorClassIdentifier: 
+  timeName: Afternoon
+  skyboxMaterial: {fileID: 2100000, guid: c335679efa83b4469892ab8088af0246, type: 2}
+  directionalLightColor: {r: 1, g: 0.9568396, b: 0.65471697, a: 1}
+  directionalLightIntensity: 1
+  backGroundMusic: {fileID: 8300000, guid: ab005806e73122147a929b9d36b059dc, type: 3}
+  ambientColor: {r: 1, g: 1, b: 1, a: 1}
+  ambientIntensity: 1

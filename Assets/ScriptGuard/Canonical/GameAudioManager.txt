@@ -1,0 +1,126 @@
+using UnityEngine;
+
+public class GameAudioManager : MonoBehaviour
+{
+    public static GameAudioManager Instance;
+
+    public string startBGM="Holidays";
+    public string startAmbience= "CityAmbience";
+    private void Awake()
+    {
+        if (Instance == null)
+        {
+            Instance = this;
+        }
+        else
+        {
+            Destroy(gameObject);
+            return;
+        }
+    }
+
+    private void Start()
+    {
+        // Create audio sources on the camera
+        GameReference.UIAudioSource = Camera.main.gameObject.AddComponent<AudioSource>();
+        GameReference.BGMAudioSource = Camera.main.gameObject.AddComponent<AudioSource>();
+        GameReference.AmbienceAudioSource = Camera.main.gameObject.AddComponent<AudioSource>();
+
+        // Assign audio mixer groups
+        GameReference.AmbienceAudioSource.outputAudioMixerGroup =
+            GameReference.AudioRegistry.audioMixer.FindMatchingGroups("Master/Ambience")[0];
+
+        GameReference.UIAudioSource.outputAudioMixerGroup =
+            GameReference.AudioRegistry.audioMixer.FindMatchingGroups("Master/UI")[0];
+
+        GameReference.BGMAudioSource.outputAudioMixerGroup =
+            GameReference.AudioRegistry.audioMixer.FindMatchingGroups("Master/BGM")[0];
+
+        // Start default ambience music
+        var amb = GameReference.AudioRegistry.GetDefinition(startAmbience);
+        if (amb != null && amb.clip != null)
+        {
+            GameReference.AmbienceAudioSource.clip = amb.clip;
+            GameReference.AmbienceAudioSource.loop = true;
+            GameReference.AmbienceAudioSource.Play();
+        }
+
+        // Start default BGM
+        var bgm = GameReference.AudioRegistry.GetDefinition(startBGM);
+        if (bgm != null && bgm.clip != null)
+        {
+            GameReference.BGMAudioSource.clip = bgm.clip;
+            GameReference.BGMAudioSource.loop = true;
+            GameReference.BGMAudioSource.Play();
+        }
+    }
+
+    public void PlayAudio(string id)
+    {
+        var def = GameReference.AudioRegistry.GetDefinition(id);
+        if (def == null || def.clip == null)
+        {
+            Debug.LogWarning("AudioDefinition not found or has no clip: " + id);
+            return;
+        }
+
+        switch (def.category)
+        {
+            case AudioDefinition.AudioCategory.BGM:
+                PlayBGM(def);
+                break;
+
+            case AudioDefinition.AudioCategory.SFX:
+                PlaySFX(def);
+                break;
+
+            case AudioDefinition.AudioCategory.Ambience:
+                PlayAmbience(def);
+                break;
+
+            case AudioDefinition.AudioCategory.UI:
+                PlayUI(def);
+                break;
+
+            case AudioDefinition.AudioCategory.Voice:
+                PlayVoice(def);
+                break;
+        }
+    }
+
+    private void PlayBGM(AudioDefinition def)
+    {
+        if (GameReference.BGMAudioSource.clip == def.clip) return;
+
+        GameReference.BGMAudioSource.Stop();
+        GameReference.BGMAudioSource.clip = def.clip;
+        GameReference.BGMAudioSource.loop = true;
+        GameReference.BGMAudioSource.Play();
+    }
+
+    private void PlayAmbience(AudioDefinition def)
+    {
+        if (GameReference.AmbienceAudioSource.clip == def.clip) return;
+
+        GameReference.AmbienceAudioSource.Stop();
+        GameReference.AmbienceAudioSource.clip = def.clip;
+        GameReference.AmbienceAudioSource.loop = true;
+        GameReference.AmbienceAudioSource.Play();
+    }
+
+    private void PlaySFX(AudioDefinition def)
+    {
+        // Play short sounds without stopping other audio
+        GameReference.UIAudioSource.PlayOneShot(def.clip, def.volume);
+    }
+
+    private void PlayUI(AudioDefinition def)
+    {
+        GameReference.UIAudioSource.PlayOneShot(def.clip, def.volume);
+    }
+
+    private void PlayVoice(AudioDefinition def)
+    {
+        GameReference.UIAudioSource.PlayOneShot(def.clip, def.volume);
+    }
+}

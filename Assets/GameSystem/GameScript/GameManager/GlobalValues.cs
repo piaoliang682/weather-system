@@ -1,0 +1,141 @@
+﻿using UnityEngine;
+using System;
+using System.Collections.Generic;
+
+public static class GlobalValue
+{
+    public static string PLAYER_LEVEL_DATA_KEY = "PlayerLevelsData";
+
+    public static string PLAYER_VARIANT_DATA_KEY = "PlayerVariantNameListData";
+
+    public static string CURRENT_LOGIN_ACCOUNT_KEY = "CurrentLoginAccount";
+    /// <summary>
+    /// Save any serializable object to PlayerPrefs as JSON.
+    /// </summary>
+    public static void SaveData<T>(string key, T data)
+    {
+        if (string.IsNullOrEmpty(key))
+        {
+            Debug.LogError("[GlobalValue] Cannot save data: key is null or empty.");
+            return;
+        }
+
+        string json = JsonUtility.ToJson(data);
+        PlayerPrefs.SetString(key, json);
+        PlayerPrefs.Save();
+
+        Debug.Log($"[GlobalValue] 💾 Saved data under key '{key}' (Type: {typeof(T).Name}):\n{json}");
+    }
+
+    /// <summary>
+    /// Load any serializable object from PlayerPrefs by key.
+    /// Returns new T() if not found or deserialization fails.
+    /// </summary>
+    public static T LoadData<T>(string key) where T : new()
+    {
+        if (string.IsNullOrEmpty(key))
+        {
+            Debug.LogError("[GlobalValue] Cannot load data: key is null or empty.");
+            return new T();
+        }
+
+        if (!PlayerPrefs.HasKey(key))
+        {
+            Debug.Log($"[GlobalValue] No data found for key '{key}'. Returning new instance of {typeof(T).Name}.");
+            return new T();
+        }
+
+        string json = PlayerPrefs.GetString(key);
+        try
+        {
+            T data = JsonUtility.FromJson<T>(json);
+
+            Debug.Log($"[GlobalValue] 💾 loaded data under key '{key}' (Type: {typeof(T).Name}):\n{json}");
+            return data == null ? new T() : data;
+        }
+
+        catch (Exception e)
+        {
+            Debug.LogWarning($"[GlobalValue] Failed to load data for key '{key}': {e.Message}");
+            return new T();
+        }
+    }
+
+    /// <summary>
+    /// Delete specific saved data by key.
+    /// </summary>
+    public static void ClearData(string key)
+    {
+        if (PlayerPrefs.HasKey(key))
+        {
+            PlayerPrefs.DeleteKey(key);
+            PlayerPrefs.Save();
+            Debug.Log($"[GlobalValue] Cleared data for key '{key}'.");
+        }
+    }
+
+    /// <summary>
+    /// Clears all saved data (use carefully).
+    /// </summary>
+    public static void ClearAll()
+    {
+        PlayerPrefs.DeleteAll();
+        PlayerPrefs.Save();
+        Debug.Log("[GlobalValue] Cleared all PlayerPrefs data!");
+    }
+}
+
+[Serializable]
+public class LevelSaveData
+{
+    public List<LevelEntry> levels = new List<LevelEntry>();
+
+    // Helper method to get a dictionary at runtime (optional)
+    [System.NonSerialized]
+    public Dictionary<string, bool> levelLookup = new Dictionary<string, bool>();
+
+    public void BuildLookup()
+    {
+        levelLookup.Clear();
+        foreach (var entry in levels)
+        {
+            levelLookup[entry.levelId] = entry.isLocked;
+        }
+    }
+}
+[Serializable]
+public class LevelEntry
+{
+    public string levelId;
+    public bool isLocked;
+
+    public LevelEntry() { }
+
+    public LevelEntry(string id, bool locked)
+    {
+        levelId = id;
+        isLocked = locked;
+    }
+}
+
+[System.Serializable]
+public class StringPair
+{
+    public string key;
+    public string value;
+}
+//public static class GameStats
+//{
+//    private static Dictionary<string, float> values = new Dictionary<string, float>();
+
+//    public static void Set(string key, float value)
+//    {
+//        values[key] = value;
+//    }
+
+//    public static float Get(string key, float defaultValue = 0f)
+//    {
+//        return values.TryGetValue(key, out float val) ? val : defaultValue;
+//    }
+//}
+

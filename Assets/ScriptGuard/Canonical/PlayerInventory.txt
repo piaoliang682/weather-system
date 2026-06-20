@@ -1,0 +1,36 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class PlayerInventory : InventoryBase
+{
+    public InventoryPreset inventoryPreset;
+    public static PlayerInventory Instance { get; private set; }
+
+    public InventoryItemSO EquippedItem { get; private set; }
+
+    private void Awake()
+    {
+        inventoryId = "Player";
+        isUsingPref = true;
+        DragStack.Initialize(GameObject.FindWithTag("GhostStack"));
+        slots = GetComponentsInChildren<Slot>();
+
+        if (Instance == null) Instance = this;
+        else Destroy(gameObject);
+
+        if (inventoryPreset != null)
+            InitializeInventory(inventoryPreset.itemList);
+        else
+            LoadInventoryFromPrefs();
+
+        SaveInventoryToPrefs();
+    }
+
+    //public void EquipItem(int index)
+    //{
+    //    EquippedItem = Inventory[index].item;
+    //}
+
+
+}
